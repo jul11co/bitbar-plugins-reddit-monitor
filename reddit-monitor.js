@@ -23,7 +23,7 @@ var resizeImg = require('resize-img');
 var jsonfile = require('jsonfile');
 var fse = require('fs-extra');
 
-// name: 'SUBREDDIT'
+// name: 'SUBREDDIT' // set name: '---' to create menu separator
 // opts: {
 //   scope: String, // 'new', 'top', 'hot', 'rising'; default: 'new'
 //   no_thumb: Boolean, // default: false 
@@ -80,6 +80,9 @@ var subreddits = [
       scope: 'new', 
       interval: 30
     }
+  },
+  {
+    name: '---'
   },
   {
     name: 'askscience',
@@ -531,6 +534,10 @@ if (fs.existsSync(config_file)) {
 console.log("😱");console.log('---');
 
 async.eachSeries(subreddits, function(subreddit, cb) {
+  if (subreddit.name == '---') {
+    console.log('---');
+    return cb();
+  }
   fetchAndDisplay(subreddit.name, subreddit.opts || {}, function() {
     setTimeout(cb, 2000);
   });
