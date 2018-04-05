@@ -1,4 +1,4 @@
-#!/usr/bin/env /Users/manhthiep/.nvm/versions/node/v5.12.0/bin/node
+#!/usr/bin/env node
 
 // <bitbar.title>Reddit Monitor</bitbar.title>
 // <bitbar.author>Jul11Co</bitbar.author>
