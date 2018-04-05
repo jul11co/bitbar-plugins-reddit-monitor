@@ -1,0 +1,16 @@
+{
+  "name": "bitbar-plugins-reddit-monitor",
+  "version": "0.0.1",
+  "description": "Get updates from r/<subreddit>",
+  "author": "Jul11Co <jul.eleven.co@gmail.com>",
+  "dependencies": {
+    "ajax-request": "^1.2.3",
+    "async": "^2.6.0",
+    "fs-extra": "^5.0.0",
+    "jsonfile": "^4.0.0",
+    "moment": "^2.19.2",
+    "nraw": "^0.2.5",
+    "request-ajax": "^1.2.0",
+    "resize-img": "^1.1.2"
+  }
+}
