@@ -11,7 +11,7 @@ bitbar-plugins-reddit-monitor
 npm install
 ```
 
-* Edit subreddits in `reddit-monitor.js`
+* Edit subreddits in `config.js`
 
 * Create symbolic link to BitBar Plugins folder (default: ~/Documents/BitBar\ Plugins)
 

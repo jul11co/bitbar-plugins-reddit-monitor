@@ -23,147 +23,8 @@ var resizeImg = require('resize-img');
 var jsonfile = require('jsonfile');
 var fse = require('fs-extra');
 
-// name: 'SUBREDDIT' // set name: '---' to create menu separator
-// opts: {
-//   scope: String, // 'new', 'top', 'hot', 'rising'; default: 'new'
-//   no_thumb: Boolean, // default: false 
-//   interval: Integer, // default: 5 minutes
-//   max_posts: Integer, // default: 25
-//   thumbs: { POST_TYPE: IMAGE_URL, ...} // POST_TYPE = 'default', 'self', 'nsfw', 'image'
-// }
-var subreddits = [
-  {
-    name: 'funny',
-    opts: {
-      scope: 'hot', 
-      interval: 30
-    }
-  }, 
-  {
-    name: 'pics',
-    opts: {
-      scope: 'hot', 
-      interval: 15
-    }
-  }, 
-  {
-    name: 'EarthPorn',
-    opts: {
-      scope: 'hot', 
-      interval: 30
-    }
-  }, 
-  {
-    name: 'movies',
-    opts: {
-      scope: 'hot', 
-      interval: 15
-    }
-  }, 
-  {
-    name: 'television',
-    opts: {
-      scope: 'hot', 
-      interval: 15
-    }
-  }, 
-  {
-    name: 'videos',
-    opts: {
-      scope: 'hot', 
-      interval: 15
-    }
-  }, 
-  {
-    name: 'tech',
-    opts: {
-      scope: 'new', 
-      interval: 30
-    }
-  },
-  {
-    name: '---'
-  },
-  {
-    name: 'askscience',
-    opts: {
-      scope: 'new', 
-      interval: 30
-    }
-  },
-  {
-    name: 'explainlikeimfive',
-    opts: {
-      scope: 'new', 
-      interval: 30,
-      no_thumb: true
-    }
-  },
-  {
-    name: 'history',
-    opts: {
-      scope: 'new', 
-      interval: 30,
-      no_thumb: true
-    }
-  },
-  {
-    name: 'lifehacks',
-    opts: {
-      scope: 'new', 
-      interval: 20
-    }
-  },
-  {
-    name: 'manga',
-    opts: {
-      scope: 'hot', 
-      interval: 15,
-      thumbs: {
-        'default': 'https://a.thumbs.redditmedia.com/3Ed51A-eafXqS28ulntBodFuQJOXF5xJNGjpyrcMpu0.png',
-        'self': 'https://b.thumbs.redditmedia.com/8oG9z_WABav5V3947rVlqfa240rRM1-awEZkxNwuTgE.png',
-        'nsfw': 'https://b.thumbs.redditmedia.com/R8Bo9EY3WBs0CC9qAwWwZ8EsiWqGxzppEP0Vl4212Lk.png',
-        'spoiler': 'https://b.thumbs.redditmedia.com/yBs3PfBnqAPLuYwucoIEp8XBLiGzTWosJqRQ7LywP9k.png'
-      }
-    }
-  }, 
-  {
-    name: 'ProgrammerHumor',
-    opts: {
-      scope: 'new', 
-      interval: 30
-    }
-  },
-  {
-    name: 'personalfinance',
-    opts: {
-      scope: 'new', 
-      interval: 30
-    }
-  },
-  {
-    name: 'Showerthoughts',
-    opts: {
-      scope: 'new', 
-      interval: 30,
-      no_thumb: true
-    }
-  },
-  {
-    name: 'todayilearned',
-    opts: {
-      scope: 'new', 
-      interval: 20
-    }
-  }
-];
-
-var default_thumbs = {
-  'default': 'https://b.thumbs.redditmedia.com/P-2XZmqukHqQk8d0UFxDtC24jPfq4fSZyJLAMNcv9-U.jpg',
-  'self': 'https://b.thumbs.redditmedia.com/P-2XZmqukHqQk8d0UFxDtC24jPfq4fSZyJLAMNcv9-U.jpg',
-  'image': 'https://b.thumbs.redditmedia.com/P-2XZmqukHqQk8d0UFxDtC24jPfq4fSZyJLAMNcv9-U.jpg',
-  'nsfw': 'https://b.thumbs.redditmedia.com/R8Bo9EY3WBs0CC9qAwWwZ8EsiWqGxzppEP0Vl4212Lk.png'
-};
+var subreddits = require('./config').subreddits;
+var default_thumbs = require('./config').default_thumbs;
 
 function getUserHome() {
   return process.env[(process.platform == 'win32') ? 'USERPROFILE' : 'HOME'];
@@ -188,8 +49,8 @@ moment.updateLocale('en', {
     hh    : "%dh",
     d     : "1d",
     dd    : "%dd",
-    M     : "1m",
-    MM    : "%dm",
+    M     : "1mon",
+    MM    : "%dmon",
     y     : "1y",
     yy    : "%dy"
   }
@@ -293,8 +154,6 @@ var getImageBase64 = function(image_src, callback) {
     if (err) return callback(err);
 
     resizeImg(body, {width: 70, height: 70}).then(function(buf) {
-      // var data = 'data:' + res.headers['content-type'] + ';base64,' + buf.toString('base64');
-
       var image_data = buf.toString('base64');
       saveFileSync(local_file, image_data);
 
@@ -355,8 +214,8 @@ var getSubredditPosts = function(subreddit, options, callback) {
       }
       return callback(null, {
         posts: posts,
-        after: data.data.after,
-        before: data.data.before
+        // after: data.data.after,
+        // before: data.data.before
       });
     }, function(err) {
       return callback(err);
@@ -415,9 +274,11 @@ var renderPost = function(post, opts, prefix) {
   var created_moment = moment.utc(post.created_utc*1000);
 
   console.log(prefix + post_title + ' | href=' + post.url + ' length=80');
-  console.log(prefix + post.domain 
+  console.log(prefix
+    + post.domain 
     + ' • u/' + post.author 
     + ' • ' + created_moment.fromNow() 
+    + ' • ' + post.score + ' pts'
     + (post.num_comments ? (' • 💬' + post.num_comments) : '')
     + ' | color=#FF6600 href=https://www.reddit.com/' + post.permalink);
   console.log(prefix + '---');
@@ -456,9 +317,11 @@ var renderPostWithThumb = function(post, opts, prefix, callback) {
       if (!err && data) image_data = ' image=' + data;
 
       console.log(prefix + post_title + ' | href=' + post.url + ' length=80' + (image_data||''));
-      console.log(prefix + post.domain 
+      console.log(prefix 
+        +  post.domain 
         + ' • u/' + post.author 
         + ' • ' + created_moment.fromNow() 
+        + ' • ' + post.score + ' pts'
         + (post.num_comments ? (' • 💬' + post.num_comments) : '')
         + ' | color=#FF6600 href=https://www.reddit.com/' + post.permalink);
       console.log(prefix + '---');
@@ -469,9 +332,10 @@ var renderPostWithThumb = function(post, opts, prefix, callback) {
     if (post_thumbnail) console.log(prefix + post_thumbnail + ' | href=' + post_thumbnail);
 
     console.log(prefix + post_title + ' | href=' + post.url + ' length=80');
-    console.log(prefix + post.domain 
+    console.log(prefix
       + ' • u/' + post.author 
       + ' • ' + created_moment.fromNow() 
+      + ' • ' + post.score + ' pts'
       + (post.num_comments ? (' • 💬' + post.num_comments) : '')
       + ' | color=#FF6600 href=https://www.reddit.com/' + post.permalink);
     console.log(prefix + '---');
@@ -534,8 +398,13 @@ if (fs.existsSync(config_file)) {
 console.log("😱");console.log('---');
 
 async.eachSeries(subreddits, function(subreddit, cb) {
+  if (subreddit.disable) return cb();
   if (subreddit.name == '---') {
     console.log('---');
+    return cb();
+  }
+  if (subreddit.group) {
+    console.log(subreddit.group.toUpperCase() + ' | size=11');
     return cb();
   }
   fetchAndDisplay(subreddit.name, subreddit.opts || {}, function() {
