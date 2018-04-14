@@ -4,7 +4,7 @@
 // <bitbar.author>Jul11Co</bitbar.author>
 // <bitbar.author.github>Jul11Co</bitbar.author.github>
 // <bitbar.desc>Get updates from r/SUBREDDIT</bitbar.desc>
-// <bitbar.dependencies>node</bitbar.desc>
+// <bitbar.dependencies>node, npm, npm/moment, npm/nraw, npm/async, npm/ajax-request, npm/resize-img, npm/jsonfile, npm/fs-extra</bitbar.dependencies>
 
 // To install
 // npm install moment nraw async ajax-request resize-img jsonfile fs-extra
@@ -17,7 +17,8 @@ var moment = require('moment');
 var nraw = require('nraw');
 var async = require('async');
 
-var request = require('ajax-request');
+var ajaxRequest = require('ajax-request');
+var request = require('request');
 var resizeImg = require('resize-img');
 
 var jsonfile = require('jsonfile');
@@ -25,6 +26,7 @@ var fse = require('fs-extra');
 
 var subreddits = require('./config').subreddits;
 var default_thumbs = require('./config').default_thumbs;
+var default_icon = require('./config').default_icon;
 
 function getUserHome() {
   return process.env[(process.platform == 'win32') ? 'USERPROFILE' : 'HOME'];
@@ -49,8 +51,8 @@ moment.updateLocale('en', {
     hh    : "%dh",
     d     : "1d",
     dd    : "%dd",
-    M     : "1mon",
-    MM    : "%dmon",
+    M     : "1mth",
+    MM    : "%dmths",
     y     : "1y",
     yy    : "%dy"
   }
@@ -136,10 +138,12 @@ var saveToJsonFile = function(info, file) {
   return err;
 }
 
-var getImageBase64 = function(image_src, callback) {
+var getImageBase64 = function(image_src, dimensions, callback) {
 
   var hashed_src = md5Hash(image_src);
   var local_file = path.join(cache_dir, hashed_src[0], hashed_src[1]+hashed_src[2], hashed_src);
+  if (dimensions.width) local_file += '-w' + dimensions.width;
+  if (dimensions.height) local_file += '-h' + dimensions.height;
   if (fs.existsSync(local_file)) {
     var image_base64 = loadFileSync(local_file);
     if (image_base64) {
@@ -147,13 +151,13 @@ var getImageBase64 = function(image_src, callback) {
     }
   }
 
-  request({
+  ajaxRequest({
     url: image_src,
     isBuffer: true
   }, function (err, res, body) {
     if (err) return callback(err);
 
-    resizeImg(body, {width: 70, height: 70}).then(function(buf) {
+    resizeImg(body, dimensions).then(function(buf) {
       var image_data = buf.toString('base64');
       saveFileSync(local_file, image_data);
 
@@ -163,6 +167,20 @@ var getImageBase64 = function(image_src, callback) {
 }
 
 ///
+
+var getSubredditAbout = function(subreddit, callback) {
+  var reddit_url = 'https://www.reddit.com/r/' + subreddit;
+  reddit_url += '/about.json';
+
+  request({
+    url: reddit_url,
+    json: true
+  }, function (err, res, body) {
+    if (err) return callback(err);
+
+    callback(null, body ? (body.data || {}) : {});
+  });
+}
 
 var extractPostInfo = function(post_data, return_fields) {
   var post_info = {};
@@ -276,6 +294,7 @@ var renderPost = function(post, opts, prefix) {
   console.log(prefix + post_title + ' | href=' + post.url + ' length=80');
   console.log(prefix
     + post.domain 
+    + ' • r/' + post.subreddit 
     + ' • u/' + post.author 
     + ' • ' + created_moment.fromNow() 
     + ' • ' + post.score + ' pts'
@@ -308,9 +327,9 @@ var renderPostWithThumb = function(post, opts, prefix, callback) {
   }
 
   if (post_thumbnail && post_thumbnail.indexOf('http') == 0) {
-    getImageBase64(post_thumbnail, function(err, data) {
+    getImageBase64(post_thumbnail, {width: 70, height: 70}, function(err, data) {
       if (err) {
-        console.log(err.message);
+        console.log(prefix + err.message);
       }
 
       var image_data = ''
@@ -319,6 +338,7 @@ var renderPostWithThumb = function(post, opts, prefix, callback) {
       console.log(prefix + post_title + ' | href=' + post.url + ' length=80' + (image_data||''));
       console.log(prefix 
         +  post.domain 
+        + ' • r/' + post.subreddit 
         + ' • u/' + post.author 
         + ' • ' + created_moment.fromNow() 
         + ' • ' + post.score + ' pts'
@@ -333,6 +353,8 @@ var renderPostWithThumb = function(post, opts, prefix, callback) {
 
     console.log(prefix + post_title + ' | href=' + post.url + ' length=80');
     console.log(prefix
+      +  post.domain 
+      + ' • r/' + post.subreddit 
       + ' • u/' + post.author 
       + ' • ' + created_moment.fromNow() 
       + ' • ' + post.score + ' pts'
@@ -349,21 +371,51 @@ var fetchAndDisplay = function(subreddit, opts, done) {
 
   var sub_prefix = opts.prefix||'--';
 
+  if (!config['about']) config['about'] = {};
+  if (!config['about'][subreddit] && !opts.skip_about) {
+    return getSubredditAbout(subreddit, function(err, result) {
+      if (err || !result) {
+        return fetchAndDisplay(subreddit, Object.assign(opts, {skip_about: true}), done);
+      }
+      config['about'][subreddit] = {
+        display_name: result['display_name'],
+        over_18: result['over_18'],
+        icon_img: result['icon_img'] || default_icon,
+      };
+      if (config['about'][subreddit]['icon_img']) {
+        getImageBase64(config['about'][subreddit]['icon_img'], {width: 20, height: 20}, function(err, image_data) {
+          if (!err && image_data) {
+            config['about'][subreddit]['icon'] = image_data;
+          }
+          return fetchAndDisplay(subreddit, opts, done);
+        });
+      } else {
+        return fetchAndDisplay(subreddit, opts, done);
+      }
+    });
+  }
+
   getPosts(subreddit, opts, function(err, result) {
     if (err) {
-      console.log(err.message);
+      console.log(sub_prefix + err.message);
       return done(err);
     } else if (result && result.posts) {
       var last_update_moment = moment(result.last_update);
 
+      var subreddit_icon = (config['about'][subreddit] && config['about'][subreddit]['icon']) ? config['about'][subreddit]['icon'] : '';
+      if (subreddit_icon) subreddit_icon = ' image=' + subreddit_icon;
+
       if (opts.scope == 'top') {
-        console.log("r/" + subreddit + ' • TOP • ' + last_update_moment.fromNow()  + " | href=https://www.reddit.com/r/" + subreddit);
+        console.log("r/" + subreddit + ' • TOP • ' + last_update_moment.fromNow()  + " | href=https://www.reddit.com/r/" 
+          + subreddit + subreddit_icon);
         console.log(sub_prefix+"TOP • r/" + subreddit + " | href=https://www.reddit.com/r/" + subreddit + "/top/ size=11");
       } else if (opts.scope == 'hot') {
-        console.log("r/" + subreddit + ' • HOT • ' + last_update_moment.fromNow()  + " | href=https://www.reddit.com/r/" + subreddit);
+        console.log("r/" + subreddit + ' • HOT • ' + last_update_moment.fromNow()  + " | href=https://www.reddit.com/r/" 
+          + subreddit + subreddit_icon);
         console.log(sub_prefix+"HOT • r/" + subreddit + " | href=https://www.reddit.com/r/" + subreddit + "/hot/ size=11");
       } else {
-        console.log("r/" + subreddit + ' • NEW • ' + last_update_moment.fromNow()  + " | href=https://www.reddit.com/r/" + subreddit);
+        console.log("r/" + subreddit + ' • NEW • ' + last_update_moment.fromNow()  + " | href=https://www.reddit.com/r/" 
+          + subreddit + subreddit_icon);
         console.log(sub_prefix+"NEW • r/" + subreddit + " | href=https://www.reddit.com/r/" + subreddit + "/new/ size=11");
       }
       // console.log(sub_prefix+'---');
